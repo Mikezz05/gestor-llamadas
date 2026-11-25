@@ -309,30 +309,66 @@ function loadXLSX() {
   });
 }
 
-function parseExcelRows(rawRows) {
+function parseExcelRows(sheet, XLSX) {
+  // raw: false convierte los números de fecha de Excel (ej. 45659) a texto real (02/01/2025)
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  const rowMeta = sheet['!rows'] || [];
+
   const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-  let hIdx = rawRows.findIndex((r) => Array.isArray(r) && ['cliente', 'nombre', 'contrato', 'serial', 'telefono'].some((k) => r.map(norm).join(' ').includes(k)));
+
+  // Buscar fila de encabezados
+  let hIdx = rawRows.findIndex((r) =>
+    Array.isArray(r) && ['cliente', 'nombre', 'suscriptor', 'titular', 'contrato', 'serial', 'telefono'].some((k) => r.map(norm).join(' ').includes(k))
+  );
   if (hIdx < 0) hIdx = 0;
+
   const headers = (rawRows[hIdx] || []).map(norm);
   const col = (keys) => headers.findIndex((h) => keys.some((k) => h.includes(k)));
 
-  const iCiudad = col(['ciudad']), iOficina = col(['oficina', 'co']), iFecha = col(['fecha']),
-        iContrato = col(['contrato', 'cuenta']), iSerial = col(['serial', 'mac']), iCliente = col(['cliente', 'nombre']),
-        iEquipo = col(['equipo', 'modelo', 'tipo']), iNota = col(['nota', 'obs', 'estatus', 'leyenda', 'resultado']);
-  const tels = headers.map((h, i) => (h.includes('tel') || h.includes('cel') || h.includes('movil') ? i : -1)).filter((i) => i >= 0);
-  const dirs = headers.map((h, i) => (h.includes('dir') || h.includes('calle') || h.includes('urb') || h.includes('sector') ? i : -1)).filter((i) => i >= 0);
+  const iCiudad = col(['ciudad', 'localidad']),
+        iOficina = col(['oficina', 'co', 'agencia']),
+        iFecha = col(['fecha']),
+        iContrato = col(['contrato', 'cuenta', 'abonado']),
+        iSerial = col(['serial', 'mac', 'serie']),
+        iCliente = col(['cliente', 'nombre', 'suscriptor', 'titular', 'razon', 'abonado']),
+        iEquipo = col(['equipo', 'modelo', 'tipo', 'servicio']),
+        iNota = col(['nota', 'obs', 'estatus', 'status', 'leyenda', 'resultado', 'gestion']);
 
-  return rawRows.slice(hIdx + 1).reduce((acc, row) => {
+  const tels = headers.map((h, i) => (h.includes('tel') || h.includes('cel') || h.includes('movil') || h.includes('tlf') ? i : -1)).filter((i) => i >= 0);
+  const dirs = headers.map((h, i) => (h.includes('dir') || h.includes('calle') || h.includes('urb') || h.includes('sector') || h.includes('vereda') || h.includes('av') ? i : -1)).filter((i) => i >= 0);
+
+  return rawRows.slice(hIdx + 1).reduce((acc, row, idx) => {
+    const realRowIndex = hIdx + 1 + idx;
+    // 1. IGNORAR FILAS OCULTAS POR FILTRO DE EXCEL
+    if (rowMeta[realRowIndex]?.hidden) return acc;
+
     if (!Array.isArray(row) || row.filter((c) => String(c ?? '').trim() !== '').length < 2) return acc;
     const val = (i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
-    const cliente = val(iCliente), contrato = val(iContrato), serial = val(iSerial), tel1 = val(tels[0] ?? -1);
+
+    const cliente = val(iCliente);
+    const contrato = val(iContrato);
+    const serial = val(iSerial);
+    const tel1 = val(tels[0] ?? -1);
+    const tel2 = val(tels[1] ?? -1);
+
     if (!cliente && !contrato && !serial && !tel1) return acc;
+
     const nota = val(iNota);
     acc.push({
-      ciudad: val(iCiudad), oficina: val(iOficina), fecha: val(iFecha), contrato, serial,
-      cliente: cliente || 'Sin nombre', telefono1: tel1, telefono2: val(tels[1] ?? -1),
-      datoExtra: '', direccion: dirs.map(val).filter(Boolean).join(' - '), tipoEquipo: val(iEquipo),
-      notaManuscrita: nota, leyenda: mapHandwrittenToLegend(nota), observacion: ''
+      ciudad: val(iCiudad),
+      oficina: val(iOficina),
+      fecha: val(iFecha),
+      contrato,
+      serial,
+      cliente: cliente || 'Sin nombre',
+      telefono1: tel1 === '-' ? '' : tel1,
+      telefono2: tel2 === '-' ? '' : tel2,
+      datoExtra: '',
+      direccion: dirs.map(val).filter(Boolean).join(' - '),
+      tipoEquipo: val(iEquipo),
+      notaManuscrita: nota,
+      leyenda: mapHandwrittenToLegend(nota),
+      observacion: ''
     });
     return acc;
   }, []);
@@ -391,7 +427,7 @@ export default function App() {
     try {
       const XLSX = await loadXLSX();
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const items = wb.SheetNames.flatMap((name) => parseExcelRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' })));
+      const items = wb.SheetNames.flatMap((name) => parseExcelRows(wb.Sheets[name], XLSX));
       if (!items.length) throw new Error('No se encontraron registros válidos en el Excel.');
 
       const now = Date.now(), batchId = `excel_${now}`, finalName = `Excel: ${file.name.replace(/\.[^/.]+$/, '')}`;
