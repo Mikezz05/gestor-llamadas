@@ -297,6 +297,47 @@ Devuelve el resultado estrictamente en el esquema JSON solicitado.`;
   throw lastError || new Error("No se pudo conectar con ningún modelo de Gemini Vision.");
 }
 
+// --- CARGA Y LECTURA DE ARCHIVOS EXCEL (.xlsx / .xls / .csv) ---
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error('No se pudo cargar el lector de Excel'));
+    document.head.appendChild(s);
+  });
+}
+
+function parseExcelRows(rawRows) {
+  const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  let hIdx = rawRows.findIndex((r) => Array.isArray(r) && ['cliente', 'nombre', 'contrato', 'serial', 'telefono'].some((k) => r.map(norm).join(' ').includes(k)));
+  if (hIdx < 0) hIdx = 0;
+  const headers = (rawRows[hIdx] || []).map(norm);
+  const col = (keys) => headers.findIndex((h) => keys.some((k) => h.includes(k)));
+
+  const iCiudad = col(['ciudad']), iOficina = col(['oficina', 'co']), iFecha = col(['fecha']),
+        iContrato = col(['contrato', 'cuenta']), iSerial = col(['serial', 'mac']), iCliente = col(['cliente', 'nombre']),
+        iEquipo = col(['equipo', 'modelo', 'tipo']), iNota = col(['nota', 'obs', 'estatus', 'leyenda', 'resultado']);
+  const tels = headers.map((h, i) => (h.includes('tel') || h.includes('cel') || h.includes('movil') ? i : -1)).filter((i) => i >= 0);
+  const dirs = headers.map((h, i) => (h.includes('dir') || h.includes('calle') || h.includes('urb') || h.includes('sector') ? i : -1)).filter((i) => i >= 0);
+
+  return rawRows.slice(hIdx + 1).reduce((acc, row) => {
+    if (!Array.isArray(row) || row.filter((c) => String(c ?? '').trim() !== '').length < 2) return acc;
+    const val = (i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
+    const cliente = val(iCliente), contrato = val(iContrato), serial = val(iSerial), tel1 = val(tels[0] ?? -1);
+    if (!cliente && !contrato && !serial && !tel1) return acc;
+    const nota = val(iNota);
+    acc.push({
+      ciudad: val(iCiudad), oficina: val(iOficina), fecha: val(iFecha), contrato, serial,
+      cliente: cliente || 'Sin nombre', telefono1: tel1, telefono2: val(tels[1] ?? -1),
+      datoExtra: '', direccion: dirs.map(val).filter(Boolean).join(' - '), tipoEquipo: val(iEquipo),
+      notaManuscrita: nota, leyenda: mapHandwrittenToLegend(nota), observacion: ''
+    });
+    return acc;
+  }, []);
+}
+
 export default function App() {
   // --- ESTADOS DE AUTENTICACIÓN Y DATOS ---
   const [user, setUser] = useState(null);
@@ -339,6 +380,40 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+ const excelInputRef = useRef(null);
+
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+    setIsScanning(true);
+    setScanProgressText(`Leyendo Excel "${file.name}"...`);
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const items = wb.SheetNames.flatMap((name) => parseExcelRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' })));
+      if (!items.length) throw new Error('No se encontraron registros válidos en el Excel.');
+
+      const now = Date.now(), batchId = `excel_${now}`, finalName = `Excel: ${file.name.replace(/\.[^/.]+$/, '')}`;
+      await setDoc(doc(db, appId, 'shared', 'scan_batches', batchId), { name: finalName, count: items.length, createdAt: now });
+
+      for (let i = 0; i < items.length; i += 400) {
+        const batch = writeBatch(db);
+        items.slice(i, i + 400).forEach((item, idx) => {
+          batch.set(doc(collection(db, appId, 'shared', 'call_records')), { ...item, batchId, batchName: finalName, filaNumero: i + idx + 1, createdAt: now });
+        });
+        await batch.commit();
+      }
+      setSelectedBatchFilter(batchId);
+      setActiveTab('records');
+      showToast(`¡Excel cargado! ${items.length} registros guardados.`);
+    } catch (err) {
+      showToast(err.message || 'Error al leer el Excel', 'error');
+    } finally {
+      setIsScanning(false);
+      setScanProgressText('');
+    }
+  };
 
   const showToast = (text, type = 'success') => {
     setToastMsg({ text, type });
@@ -1209,6 +1284,12 @@ export default function App() {
                     <Plus className="w-4 h-4" />
                     <span>Nuevo</span>
                   </button>
+
+                  <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} className="hidden" />
+<button onClick={() => excelInputRef.current?.click()} className="px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-1.5">
+  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+  <span>Importar Excel</span>
+</button>
 
                   <button
                     onClick={handleExportCSV}
