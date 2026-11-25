@@ -685,14 +685,17 @@ export default function App() {
       message: "¿Estás seguro de que deseas eliminar permanentemente los registros seleccionados?",
       onConfirm: async () => {
         try {
-          const batch = writeBatch(db);
-          Array.from(selectedIds).forEach((id) => {
-            batch.delete(doc(db, appId, 'shared', 'call_records', id));
-          });
-          await batch.commit();
+          const idsArray = Array.from(selectedIds);
+          for (let i = 0; i < idsArray.length; i += 400) {
+            const batch = writeBatch(db);
+            idsArray.slice(i, i + 400).forEach((id) => {
+              batch.delete(doc(db, appId, 'shared', 'call_records', id));
+            });
+            await batch.commit();
+          }
           setSelectedIds(new Set());
-          showToast("Registros eliminados.");
-        } catch (err) {
+          showToast(`${idsArray.length} registros eliminados.`);
+        } catch {
           showToast("Error al eliminar", "error");
         }
         setConfirmModal(null);
@@ -706,17 +709,18 @@ export default function App() {
       message: `Se eliminarán la hoja "${name}" y todos los registros asociados a ella. ¿Continuar?`,
       onConfirm: async () => {
         try {
-          const toDelete = records.filter((r) => r.batchId === batchId);
-          const batch = writeBatch(db);
-          toDelete.forEach((r) => {
-            batch.delete(doc(db, appId, 'shared', 'call_records', r.id));
-          });
-          batch.delete(doc(db, appId, 'shared', 'scan_batches', batchId));
-          await batch.commit();
-          if (selectedBatchFilter === batchId) setSelectedBatchFilter('ALL');
-          showToast(`Hoja "${name}" eliminada.`);
-        } catch (err) {
-          showToast("Error al eliminar la hoja", "error");
+          const idsArray = Array.from(selectedIds);
+          for (let i = 0; i < idsArray.length; i += 400) {
+            const batch = writeBatch(db);
+            idsArray.slice(i, i + 400).forEach((id) => {
+              batch.delete(doc(db, appId, 'shared', 'call_records', id));
+            });
+            await batch.commit();
+          }
+          setSelectedIds(new Set());
+          showToast(`${idsArray.length} registros eliminados.`);
+        } catch {
+          showToast("Error al eliminar", "error");
         }
         setConfirmModal(null);
       }
