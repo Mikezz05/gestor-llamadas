@@ -499,7 +499,7 @@ export default function App() {
       }
     );
 
-    const batchesCol = collection(db, 'artifacts', appId, 'users', user.uid, 'scan_batches');
+    const batchesCol = collection(db, appId, 'shared', 'scan_batches');
     const unsubBatches = onSnapshot(
       batchesCol,
       (snapshot) => {
@@ -589,7 +589,7 @@ export default function App() {
       const finalBatchName = batchName.trim() || detectedTitle || `Hoja ${new Date().toLocaleDateString('es-VE')}`;
 
       // Guardar lote en Firestore
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'scan_batches', batchId), {
+      await setDoc(doc(db, appId, 'shared', 'scan_batches', batchId), {
         name: finalBatchName,
         detectedTitle,
         count: extractedItems.length,
@@ -603,7 +603,7 @@ export default function App() {
         const batch = writeBatch(db);
         chunk.forEach((item, idx) => {
           const rowNum = i + idx + 1;
-          const docRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'call_records'));
+          const docRef = doc(collection(db, appId, 'shared', 'call_records'));
           const autoLegend = mapHandwrittenToLegend(item.notaManuscrita);
           batch.set(docRef, {
             batchId,
@@ -650,7 +650,7 @@ export default function App() {
   const handleUpdateRecord = async (recordId, updates) => {
     if (!user) return;
     try {
-      const ref = doc(db, 'artifacts', appId, 'users', user.uid, 'call_records', recordId);
+      const ref = doc(db, appId, 'shared', 'call_records', recordId);
       await updateDoc(ref, updates);
     } catch (err) {
       console.error("Error actualizando registro:", err);
@@ -665,7 +665,7 @@ export default function App() {
       const idsArray = Array.from(selectedIds);
       const batch = writeBatch(db);
       idsArray.forEach((id) => {
-        const ref = doc(db, 'artifacts', appId, 'users', user.uid, 'call_records', id);
+        const ref = doc(db, appId, 'shared', 'call_records', id);
         batch.update(ref, { leyenda: legendLabel });
       });
       await batch.commit();
@@ -687,7 +687,7 @@ export default function App() {
         try {
           const batch = writeBatch(db);
           Array.from(selectedIds).forEach((id) => {
-            batch.delete(doc(db, 'artifacts', appId, 'users', user.uid, 'call_records', id));
+            batch.delete(doc(db, appId, 'shared', 'call_records', id));
           });
           await batch.commit();
           setSelectedIds(new Set());
@@ -709,9 +709,9 @@ export default function App() {
           const toDelete = records.filter((r) => r.batchId === batchId);
           const batch = writeBatch(db);
           toDelete.forEach((r) => {
-            batch.delete(doc(db, 'artifacts', appId, 'users', user.uid, 'call_records', r.id));
+            batch.delete(doc(db, appId, 'shared', 'call_records', r.id));
           });
-          batch.delete(doc(db, 'artifacts', appId, 'users', user.uid, 'scan_batches', batchId));
+          batch.delete(doc(db, appId, 'shared', 'scan_batches', batchId));
           await batch.commit();
           if (selectedBatchFilter === batchId) setSelectedBatchFilter('ALL');
           showToast(`Hoja "${name}" eliminada.`);
@@ -728,7 +728,7 @@ export default function App() {
     if (!user) return;
     try {
       const now = Date.now();
-      const docRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'call_records'));
+      const docRef = doc(collection(db, appId, 'shared', 'call_records'));
       await setDoc(docRef, {
         ...newRec,
         batchId: 'manual',
