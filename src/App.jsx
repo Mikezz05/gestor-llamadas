@@ -480,7 +480,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const recordsCol = collection(db, 'artifacts', appId, 'users', user.uid, 'call_records');
+    const recordsCol = collection(db, appId, 'shared', 'call_records');
     const unsubRecords = onSnapshot(
       recordsCol,
       (snapshot) => {
