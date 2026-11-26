@@ -341,7 +341,7 @@ function parseExcelRows(sheet, XLSX) {
   const tels = headers.map((h, i) => (h.includes('tel') || h.includes('cel') || h.includes('movil') || h.includes('tlf') ? i : -1)).filter((i) => i >= 0);
   const dirs = headers
     .map((h, i) =>
-      ['dir', 'calle', 'urb', 'sector', 'vereda', 'av', 'casa', 'nro', 'numero', 'num', 'parcela', 'lote', 'apto', 'piso', 'edificio', 'edif', 'manzana', 'mz']
+      ['dir', 'calle', 'urb', 'sector', 'vereda', 'av', 'casa', 'nro', 'numero', 'num', 'parcela', 'lote', 'apto', 'piso', 'edificio', 'edif']
         .some((k) => h === k || h.includes(k)) && !h.includes('tel') && !h.includes('contrato') && !h.includes('fila')
         ? i
         : -1
