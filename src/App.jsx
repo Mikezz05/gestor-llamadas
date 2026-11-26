@@ -310,7 +310,7 @@ function loadXLSX() {
 }
 
 function parseExcelRows(sheet, XLSX) {
-  // raw: false convierte los números de fecha de Excel (ej. 45659) a texto real (02/01/2025)
+  // raw: false convierte los números de fecha de Excel (ej. 45659) a texto real (01/02/2025)
   const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
   const rowMeta = sheet['!rows'] || [];
 
@@ -328,25 +328,51 @@ function parseExcelRows(sheet, XLSX) {
   const iCiudad = col(['ciudad', 'localidad']),
         iOficina = col(['oficina', 'co', 'agencia']),
         iFecha = col(['fecha']),
-        iContrato = col(['contrato', 'cuenta', 'abonado']),
+        // Ignora columnas como "Nombre del contrato" para no poner el nombre en el número de contrato
+        iContrato = headers.findIndex((h) =>
+          ['contrato', 'cuenta', 'abonado', 'codigo'].some((k) => h.includes(k)) &&
+          !['nombre', 'cliente', 'suscriptor', 'titular'].some((ex) => h.includes(ex))
+        ),
         iSerial = col(['serial', 'mac', 'serie']),
-        iCliente = col(['cliente', 'nombre', 'suscriptor', 'titular', 'razon', 'abonado']),
+        iCliente = col(['cliente', 'nombre', 'suscriptor', 'titular', 'razon', 'usuario', 'abonado', 'beneficiario', 'persona', 'NOMB_ABONADO']),
         iEquipo = col(['equipo', 'modelo', 'tipo', 'servicio']),
         iNota = col(['nota', 'obs', 'estatus', 'status', 'leyenda', 'resultado', 'gestion']);
 
   const tels = headers.map((h, i) => (h.includes('tel') || h.includes('cel') || h.includes('movil') || h.includes('tlf') ? i : -1)).filter((i) => i >= 0);
-  const dirs = headers.map((h, i) => (h.includes('dir') || h.includes('calle') || h.includes('urb') || h.includes('sector') || h.includes('vereda') || h.includes('av') ? i : -1)).filter((i) => i >= 0);
+  const dirs = headers
+    .map((h, i) =>
+      ['dir', 'calle', 'urb', 'sector', 'vereda', 'av', 'casa', 'nro', 'numero', 'num', 'parcela', 'lote', 'apto', 'piso', 'edificio', 'edif', 'manzana', 'mz']
+        .some((k) => h === k || h.includes(k)) && !h.includes('tel') && !h.includes('contrato') && !h.includes('fila')
+        ? i
+        : -1
+    )
+    .filter((i) => i >= 0);
 
   return rawRows.slice(hIdx + 1).reduce((acc, row, idx) => {
     const realRowIndex = hIdx + 1 + idx;
-    // 1. IGNORAR FILAS OCULTAS POR FILTRO DE EXCEL
     if (rowMeta[realRowIndex]?.hidden) return acc;
 
     if (!Array.isArray(row) || row.filter((c) => String(c ?? '').trim() !== '').length < 2) return acc;
     const val = (i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
 
-    const cliente = val(iCliente);
-    const contrato = val(iContrato);
+    let cliente = val(iCliente);
+    // Respaldo: si no detectó el encabezado del nombre, busca la celda con nombre y apellido (letras y espacios, sin números de serial/equipo)
+    if (!cliente) {
+      const nameCell = row.find((c, idx) => {
+        if (idx === iCiudad || idx === iOficina || idx === iEquipo || idx === iNota || dirs.includes(idx)) return false;
+        const s = String(c ?? '').trim();
+        return /^[A-Za-zÁÉÍÓÚÑáéíóúñ\s.,]{6,}$/.test(s) && s.includes(' ');
+      });
+      if (nameCell) cliente = String(nameCell).trim();
+    }
+
+    let contrato = val(iContrato);
+    // Respaldo: si no detectó el código de contrato, busca en la fila la celda que empieza por 0300 o 7-12 dígitos
+    if (!contrato || !/\d{6,}/.test(contrato)) {
+      const codeCell = row.find((c) => /^0?\d{7,12}$/.test(String(c ?? '').trim()));
+      if (codeCell) contrato = String(codeCell).trim();
+    }
+
     const serial = val(iSerial);
     const tel1 = val(tels[0] ?? -1);
     const tel2 = val(tels[1] ?? -1);
