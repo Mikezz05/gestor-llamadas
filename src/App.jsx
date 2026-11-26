@@ -799,8 +799,17 @@ export default function App() {
       if (selectedBatchFilter !== 'ALL' && r.batchId !== selectedBatchFilter) return false;
       if (selectedLegendFilter !== 'ALL' && r.leyenda !== selectedLegendFilter) return false;
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        const match =
+        const q = searchTerm.toLowerCase().trim();
+        const qDigits = q.replace(/\D/g, '');
+        const tel1Clean = (r.telefono1 || '').replace(/\D/g, '');
+        const tel2Clean = (r.telefono2 || '').replace(/\D/g, '');
+
+        const matchesPhoneDigits =
+          qDigits.length >= 4 &&
+          (tel1Clean.includes(qDigits) || tel2Clean.includes(qDigits));
+
+        return (
+          matchesPhoneDigits ||
           (r.cliente || '').toLowerCase().includes(q) ||
           (r.telefono1 || '').toLowerCase().includes(q) ||
           (r.telefono2 || '').toLowerCase().includes(q) ||
@@ -808,8 +817,8 @@ export default function App() {
           (r.serial || '').toLowerCase().includes(q) ||
           (r.direccion || '').toLowerCase().includes(q) ||
           (r.leyenda || '').toLowerCase().includes(q) ||
-          (r.notaManuscrita || '').toLowerCase().includes(q);
-        if (!match) return false;
+          (r.notaManuscrita || '').toLowerCase().includes(q)
+        );
       }
       return true;
     });
