@@ -1294,17 +1294,29 @@ export default function App() {
             {/* BARRA DE HERRAMIENTAS, FILTROS Y ACCIONES */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
               <div className="flex flex-col md:flex-row gap-3 justify-between">
-                {/* BUSCADOR */}
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por cliente, teléfono, contrato, serial, dirección o leyenda..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  />
-                </div>
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por cliente, teléfono, contrato, serial, dirección o leyenda..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {searchTerm.replace(/\D/g, '').length >= 7 && (
+                <a
+                  href={`tel:${searchTerm.replace(/\D/g, '')}`}
+                  className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold flex items-center gap-1.5 shadow-sm shrink-0 transition-all"
+                  title={`Llamar al ${searchTerm.replace(/\D/g, '')}`}
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Llamar</span>
+                </a>
+              )}
+            </div>
 
                 {/* SELECTOR DE HOJA / LOTE */}
                 <div className="flex flex-wrap items-center gap-2">
