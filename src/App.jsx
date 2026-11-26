@@ -1537,6 +1537,21 @@ export default function App() {
                         <th className="py-3 px-3 min-w-[200px]">Dirección</th>
                         <th className="py-3 px-3 min-w-[210px]">Leyenda / Resultado</th>
                         <th className="py-3 px-3 min-w-[180px]">Observación Adicional</th>
+                        <th className="py-3 px-3 min-w-[140px]">Subido (Fecha / Hora)</th>
+                        <td className="py-3 px-3 align-top text-slate-600">
+                          {rec.createdAt ? (
+                            <div className="leading-tight">
+                              <p className="font-semibold text-slate-800">
+                                {new Date(rec.createdAt).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {new Date(rec.createdAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Sin fecha</span>
+                          )}
+                        </td>
                         <th className="py-3 px-3 w-16 text-right">Editar</th>
                       </tr>
                     </thead>
